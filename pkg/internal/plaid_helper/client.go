@@ -112,8 +112,6 @@ func (p *plaidClient) GetAccounts(ctx context.Context, accessToken string, optio
 	}
 	span.Data["options"] = options
 
-	p.client.PlaidApi.AccountsGetExecute()
-
 	result, err := p.client.GetAccountsWithOptions(accessToken, options)
 	span.Data["plaidRequestId"] = result.RequestID
 	if err != nil {

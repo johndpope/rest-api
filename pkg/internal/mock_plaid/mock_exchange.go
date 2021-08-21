@@ -27,15 +27,16 @@ func MockExchangePublicToken(t *testing.T) string {
 			}
 			require.NoError(t, json.NewDecoder(request.Body).Decode(&exchangeRequest), "must decode request")
 
-			if exchangeRequest.PublicToken != publicToken {
-				return plaid.Error{
-					ErrorType:      "INVALID_REQUEST",
-					ErrorCode:      "1234",
-					ErrorMessage:   "public_token is not valid",
-					DisplayMessage: "public_token is not valid",
-					StatusCode:     http.StatusBadRequest,
-				}, http.StatusBadRequest
-			}
+		if exchangeRequest.PublicToken != publicToken {
+			return plaid.Error{
+				RequestId: gofakeit.UUID(),
+				ErrorType:      "INVALID_REQUEST",
+				ErrorCode:      "1234",
+				ErrorMessage:   "public_token is not valid",
+				DisplayMessage: "public_token is not valid",
+				StatusCode:     http.StatusBadRequest,
+			}, http.StatusBadRequest
+		}
 
 			return plaid.ExchangePublicTokenResponse{
 				AccessToken: gofakeit.UUID(),
