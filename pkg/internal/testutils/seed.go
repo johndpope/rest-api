@@ -191,6 +191,9 @@ func SeedAccount(t *testing.T, db *pg.DB, options SeedAccountOption) (*models.Us
 				},
 			}
 
+			checkingAccountSubType := plaid.ACCOUNTSUBTYPE_CHECKING
+			savingAccountSubType := plaid.ACCOUNTSUBTYPE_SAVINGS
+
 			plaidData.BankAccounts[accessToken] = map[string]plaid.AccountBase{
 				checkingAccountId: {
 					AccountId: checkingAccountId,
@@ -200,11 +203,11 @@ func SeedAccount(t *testing.T, db *pg.DB, options SeedAccountOption) (*models.Us
 						IsoCurrencyCode:        *plaid.NewNullableString(myownsanity.StringP("USD")),
 						UnofficialCurrencyCode: *plaid.NewNullableString(myownsanity.StringP("USD")),
 					},
-					Mask:               "1234",
-					Name:               "Checking Account",
-					OfficialName:       "Checking",
-					Subtype:            "depository",
-					Type:               "checking",
+					Mask:         *plaid.NewNullableString(myownsanity.StringP("1234")),
+					Name:         "Checking Account",
+					OfficialName: *plaid.NewNullableString(myownsanity.StringP("Checking")),
+					Type:         plaid.ACCOUNTTYPE_DEPOSITORY,
+					Subtype:      *plaid.NewNullableAccountSubtype(&checkingAccountSubType),
 				},
 				savingsAccountId: {
 					AccountId: savingsAccountId,
@@ -214,11 +217,11 @@ func SeedAccount(t *testing.T, db *pg.DB, options SeedAccountOption) (*models.Us
 						IsoCurrencyCode:        *plaid.NewNullableString(myownsanity.StringP("USD")),
 						UnofficialCurrencyCode: *plaid.NewNullableString(myownsanity.StringP("USD")),
 					},
-					Mask:               "2345",
-					Name:               "Savings Account",
-					OfficialName:       "Savings",
-					Subtype:            "depository",
-					Type:               "saving",
+					Mask:         *plaid.NewNullableString(myownsanity.StringP("2345")),
+					Name:         "Savings Account",
+					OfficialName: *plaid.NewNullableString(myownsanity.StringP("Savings")),
+					Type:         plaid.ACCOUNTTYPE_DEPOSITORY,
+					Subtype:      *plaid.NewNullableAccountSubtype(&savingAccountSubType),
 				},
 			}
 

@@ -2,6 +2,7 @@ package platypus
 
 import (
 	"context"
+	"encoding/json"
 	"github.com/MicahParks/keyfunc"
 	"github.com/getsentry/sentry-go"
 	"github.com/pkg/errors"
@@ -100,6 +101,41 @@ func (m *memoryWebhookVerification) GetVerificationKey(ctx context.Context, keyI
 		return nil, err
 	}
 
+	var expiration time.Time
+	if result.ExpiredAt != nil {
+		expiration = time.Unix(int64(*result.ExpiredAt), 0)
+	} else {
+		// Making a huge assumption here, and this might end up causing problems later on. Maybe we should also add a
+		// check here to make sure that items that are close to expiration even here should not be cached?
+		expiration = time.Unix(int64(result.CreatedAt), 0).Add(30 * time.Minute)
+	}
+
+	var keys = struct {
+		Keys []WebhookVerificationKey `json:"keys"`
+	}{
+		Keys: []WebhookVerificationKey{
+			*result,
+		},
+	}
+
+	encodedKeys, err := json.Marshal(keys)
+	if err != nil {
+		return nil, errors.Wrap(err, "failed to convert plaid verification key to json")
+	}
+
+	var jwksJSON json.RawMessage = encodedKeys
+
+	jwksFunc, err := keyfunc.New(jwksJSON)
+	if err != nil {
+		return nil, errors.Wrap(err, "failed to create key function")
+	}
+
+	m.cache[keyId] = &keyCacheItem{
+		expiration:  expiration,
+		keyFunction: jwksFunc,
+	}
+
+	return jwksFunc, nil
 }
 
 func (m *memoryWebhookVerification) cacheWorker() {

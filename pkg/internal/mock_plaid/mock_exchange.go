@@ -4,6 +4,7 @@ import (
 	"encoding/json"
 	"github.com/brianvoe/gofakeit/v6"
 	"github.com/monetr/rest-api/pkg/internal/mock_http_helper"
+	"github.com/monetr/rest-api/pkg/internal/myownsanity"
 	"github.com/plaid/plaid-go/plaid"
 	"github.com/stretchr/testify/require"
 	"net/http"
@@ -27,21 +28,23 @@ func MockExchangePublicToken(t *testing.T) string {
 			}
 			require.NoError(t, json.NewDecoder(request.Body).Decode(&exchangeRequest), "must decode request")
 
+		requestId := gofakeit.UUID()
 		if exchangeRequest.PublicToken != publicToken {
 			return plaid.Error{
-				RequestId: gofakeit.UUID(),
+				RequestId:      &requestId,
 				ErrorType:      "INVALID_REQUEST",
 				ErrorCode:      "1234",
 				ErrorMessage:   "public_token is not valid",
-				DisplayMessage: "public_token is not valid",
-				StatusCode:     http.StatusBadRequest,
+				DisplayMessage: *plaid.NewNullableString(myownsanity.StringP("public_token is not valid")),
+				Status:         *plaid.NewNullableFloat32(myownsanity.Float32P(float32(http.StatusBadRequest))),
 			}, http.StatusBadRequest
 		}
 
-			return plaid.ExchangePublicTokenResponse{
-				AccessToken: gofakeit.UUID(),
-				ItemID:      gofakeit.UUID(),
-			}, http.StatusOK
+		return plaid.ItemPublicTokenExchangeResponse{
+			RequestId:   requestId,
+			AccessToken: gofakeit.UUID(),
+			ItemId:      gofakeit.UUID(),
+		}, http.StatusOK
 		},
 		PlaidHeaders,
 	)

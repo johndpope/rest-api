@@ -424,19 +424,6 @@ func (c *Controller) plaidTokenCallback(ctx iris.Context) {
 		return
 	}
 
-	plaidAccounts, err := c.plaid.GetAccounts(c.getContext(ctx), result.AccessToken, plaid.GetAccountsOptions{
-		AccountIDs: callbackRequest.AccountIds,
-	})
-	if err != nil {
-		c.wrapAndReturnError(ctx, err, http.StatusInternalServerError, "failed to retrieve accounts")
-		return
-	}
-
-	if len(plaidAccounts) == 0 {
-		c.returnError(ctx, http.StatusInternalServerError, "could not retrieve details for any accounts")
-		return
-	}
-
 	repo := c.mustGetAuthenticatedRepository(ctx)
 
 	var webhook string
@@ -452,7 +439,7 @@ func (c *Controller) plaidTokenCallback(ctx iris.Context) {
 	if err = c.plaidSecrets.UpdateAccessTokenForPlaidLinkId(
 		c.getContext(ctx),
 		repo.AccountId(),
-		result.ItemID,
+		result.ItemId,
 		result.AccessToken,
 	); err != nil {
 		log.WithError(err).Errorf("failed to store access token")
@@ -461,7 +448,7 @@ func (c *Controller) plaidTokenCallback(ctx iris.Context) {
 	}
 
 	plaidLink := models.PlaidLink{
-		ItemId: result.ItemID,
+		ItemId: result.ItemId,
 		Products: []string{
 			// TODO (elliotcourant) Make this based on what product's we sent in the create link token request.
 			"transactions",
@@ -488,21 +475,41 @@ func (c *Controller) plaidTokenCallback(ctx iris.Context) {
 		return
 	}
 
+	// Create a plaid client for the new link.
+	client, err := c.plaid.NewClient(c.getContext(ctx), &link, result.AccessToken)
+	if err != nil {
+		c.wrapAndReturnError(ctx, err, http.StatusInternalServerError, "failed to create Plaid client")
+		return
+	}
+
+	// Then use that client to retrieve that link's bank accounts.
+	plaidAccounts, err := client.GetAccounts(c.getContext(ctx), callbackRequest.AccountIds...)
+	if err != nil {
+		c.wrapAndReturnError(ctx, err, http.StatusInternalServerError, "failed to retrieve accounts")
+		return
+	}
+
+	if len(plaidAccounts) == 0 {
+		c.returnError(ctx, http.StatusInternalServerError, "could not retrieve details for any accounts")
+		return
+	}
+
 	now := time.Now().UTC()
 	accounts := make([]models.BankAccount, len(plaidAccounts))
 	for i, plaidAccount := range plaidAccounts {
 		accounts[i] = models.BankAccount{
 			AccountId:         repo.AccountId(),
 			LinkId:            link.LinkId,
-			PlaidAccountId:    plaidAccount.AccountID,
-			AvailableBalance:  int64(plaidAccount.Balances.Available * 100),
-			CurrentBalance:    int64(plaidAccount.Balances.Current * 100),
-			Name:              plaidAccount.Name,
-			Mask:              plaidAccount.Mask,
-			PlaidName:         plaidAccount.Name,
-			PlaidOfficialName: plaidAccount.OfficialName,
-			Type:              models.BankAccountType(plaidAccount.Type),
-			SubType:           models.BankAccountSubType(plaidAccount.Subtype),
+			PlaidAccountId:    plaidAccount.GetAccountId(),
+			AvailableBalance:  plaidAccount.GetBalances().GetAvailable(),
+			CurrentBalance:    plaidAccount.GetBalances().GetCurrent(),
+			Name:              plaidAccount.GetName(),
+			Mask:              plaidAccount.GetMask(),
+			PlaidName:         plaidAccount.GetName(),
+			PlaidOfficialName: plaidAccount.GetOfficialName(),
+			// THIS MIGHT BREAK SOMETHING.
+			//Type:              models.BankAccountType(plaidAccount.Type),
+			//SubType:           models.BankAccountSubType(plaidAccount.Subtype),
 			LastUpdated:       now,
 		}
 	}

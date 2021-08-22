@@ -3,6 +3,7 @@ package platypus
 import (
 	"context"
 	"github.com/getsentry/sentry-go"
+	"github.com/monetr/rest-api/pkg/config"
 	"github.com/monetr/rest-api/pkg/crumbs"
 	"github.com/monetr/rest-api/pkg/models"
 	"github.com/monetr/rest-api/pkg/repository"
@@ -11,6 +12,7 @@ import (
 	"github.com/plaid/plaid-go/plaid"
 	"github.com/sirupsen/logrus"
 	"net/http"
+	"time"
 )
 
 type (
@@ -20,6 +22,7 @@ type (
 		GetWebhookVerificationKey(ctx context.Context, keyId string) (*WebhookVerificationKey, error)
 		NewClientFromItemId(ctx context.Context, itemId string) (Client, error)
 		NewClientFromLink(ctx context.Context, accountId uint64, linkId uint64) (Client, error)
+		NewClient(ctx context.Context, link *models.Link, accessToken string) (Client, error)
 		Close() error
 	}
 )
@@ -56,6 +59,27 @@ func after(span *sentry.Span, response *http.Response, err error, message, error
 var (
 	_ Platypus = &Plaid{}
 )
+
+func NewPlaid(log *logrus.Entry, secret secrets.PlaidSecretsProvider, repo repository.PlaidRepository, options config.Plaid) *Plaid {
+	httpClient := &http.Client{
+		Timeout: 60 * time.Second,
+	}
+
+	conf := plaid.NewConfiguration()
+	conf.HTTPClient = httpClient
+	conf.UseEnvironment(options.Environment)
+	conf.AddDefaultHeader("PLAID-CLIENT-ID", options.ClientID)
+	conf.AddDefaultHeader("PLAID-SECRET", options.ClientSecret)
+
+	client := plaid.NewAPIClient(conf)
+
+	return &Plaid{
+		client: client,
+		log:    log,
+		secret: secret,
+		repo:   repo,
+	}
+}
 
 type Plaid struct {
 	client *plaid.APIClient
@@ -167,11 +191,32 @@ func (p *Plaid) GetWebhookVerificationKey(ctx context.Context, keyId string) (*W
 }
 
 func (p *Plaid) NewClientFromItemId(ctx context.Context, itemId string) (Client, error) {
-	panic("implement me")
+	span := sentry.StartSpan(ctx, "Plaid - NewClientFromItemId")
+	defer span.Finish()
+
+	link, err := p.repo.GetLinkByItemId(span.Context(), itemId)
+	if err != nil {
+		return nil, errors.Wrap(err, "cannot create client without link")
+	}
+
+	return p.newClient(span.Context(), link)
 }
 
 func (p *Plaid) NewClientFromLink(ctx context.Context, accountId uint64, linkId uint64) (Client, error) {
 	panic("implement me")
+}
+
+func (p *Plaid) NewClient(ctx context.Context, link *models.Link, accessToken string) (Client, error) {
+	return &PlaidClient{
+		accountId:   link.AccountId,
+		linkId:      link.LinkId,
+		accessToken: accessToken,
+		log: p.log.WithFields(logrus.Fields{
+			"accountId": link.AccountId,
+			"linkId":    link.LinkId,
+		}),
+		client: p.client,
+	}, nil
 }
 
 func (p *Plaid) newClient(ctx context.Context, link *models.Link) (Client, error) {
@@ -191,16 +236,7 @@ func (p *Plaid) newClient(ctx context.Context, link *models.Link) (Client, error
 		return nil, err
 	}
 
-	return &PlaidClient{
-		accountId:   link.AccountId,
-		linkId:      link.LinkId,
-		accessToken: accessToken,
-		log: p.log.WithFields(logrus.Fields{
-			"accountId": link.AccountId,
-			"linkId":    link.LinkId,
-		}),
-		client: p.client,
-	}, nil
+	return p.NewClient(span.Context(), link, accessToken)
 }
 
 func (p *Plaid) Close() error {
