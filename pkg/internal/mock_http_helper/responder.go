@@ -33,6 +33,11 @@ func NewHttpMockJsonResponder(
 			Body:          ioutil.NopCloser(body),
 			ContentLength: int64(body.Len()),
 			Request:       request,
+			Header: map[string][]string{
+				"Content-Type": {
+					"application/json",
+				},
+			},
 		}
 
 		headers := headersFn(t, request, result, status)

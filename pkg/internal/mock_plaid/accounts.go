@@ -80,34 +80,30 @@ func MockGetAccountsExtended(t *testing.T, plaidData *testutils.MockPlaidData) {
 		t,
 		"POST", Path(t, "/accounts/get"),
 		func(t *testing.T, request *http.Request) (interface{}, int) {
+			accessToken := ValidatePlaidAuthentication(t, request, RequireAccessToken)
 			var getAccountsRequest struct {
-				ClientId    string `json:"client_id"`
-				Secret      string `json:"secret"`
-				AccessToken string `json:"access_token"`
 				Options     struct {
-					AccountIds []string `json:"account_ids"`
+					 AccountIds []string `json:"account_ids"`
 				} `json:"options"`
 			}
 			require.NoError(t, json.NewDecoder(request.Body).Decode(&getAccountsRequest), "must decode request")
 
-		accounts, ok := plaidData.BankAccounts[getAccountsRequest.AccessToken]
-		if !ok {
-			panic("invalid access token mocking not implemented")
-		}
+			accounts, ok := plaidData.BankAccounts[accessToken]
+			require.True(t, ok, "invalid access token mocking not implemented")
 
-		response := plaid.AccountsGetResponse{
-			RequestId: gofakeit.UUID(),
-			Accounts:  make([]plaid.AccountBase, 0),
-			Item:      plaid.Item{}, // Not yet populating this.
-		}
-		for _, accountId := range getAccountsRequest.Options.AccountIds {
-			account, ok := accounts[accountId]
-			if !ok {
-				panic("bad account id handling not yet implemented")
+			response := plaid.AccountsGetResponse{
+				RequestId: gofakeit.UUID(),
+				Accounts:  make([]plaid.AccountBase, 0),
+				Item:      plaid.Item{}, // Not yet populating this.
 			}
+			for _, accountId := range getAccountsRequest.Options.AccountIds {
+				account, ok := accounts[accountId]
+				if !ok {
+					 panic("bad account id handling not yet implemented")
+				}
 
-			response.Accounts = append(response.Accounts, account)
-		}
+				response.Accounts = append(response.Accounts, account)
+			}
 
 			return response, http.StatusOK
 		},

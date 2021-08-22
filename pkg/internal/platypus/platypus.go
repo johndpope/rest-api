@@ -34,6 +34,10 @@ type (
 func after(span *sentry.Span, response *http.Response, err error, message, errorMessage string) error {
 	if response != nil {
 		requestId := response.Header.Get("X-Request-Id")
+		if span.Data == nil {
+			span.Data = map[string]interface{}{}
+		}
+
 		span.Data["plaidRequestId"] = requestId
 		span.SetTag("plaidRequestId", requestId)
 		crumbs.HTTP(
@@ -184,10 +188,10 @@ func (p *Plaid) GetWebhookVerificationKey(ctx context.Context, keyId string) (*W
 		span,
 		response,
 		err,
-		"Exchanging public token with Plaid",
-		"failed to exchange public token with Plaid",
+		"Retrieving webhook verification key",
+		"failed to retrieve webhook verification key from Plaid",
 	); err != nil {
-		log.WithError(err).Errorf("failed to exchange public token with Plaid")
+		log.WithError(err).Errorf("failed to retrieve webhook verification key from Plaid")
 		return nil, err
 	}
 

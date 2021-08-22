@@ -5,6 +5,7 @@ import (
 	"github.com/brianvoe/gofakeit/v6"
 	"github.com/jarcoal/httpmock"
 	"github.com/monetr/rest-api/pkg/config"
+	"github.com/monetr/rest-api/pkg/internal/mock_plaid"
 	"github.com/monetr/rest-api/pkg/internal/testutils"
 	"github.com/monetr/rest-api/pkg/repository"
 	"github.com/monetr/rest-api/pkg/secrets"
@@ -18,6 +19,8 @@ func TestNewInMemoryWebhookVerification(t *testing.T) {
 	t.Run("simple", func(t *testing.T) {
 		httpmock.Activate()
 		defer httpmock.DeactivateAndReset()
+
+		mock_plaid.MockGetWebhookVerificationKey(t)
 
 		log := testutils.GetLog(t)
 		db := testutils.GetPgDatabaseTxn(t)
