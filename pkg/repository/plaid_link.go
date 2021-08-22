@@ -5,6 +5,7 @@ package repository
 import (
 	"context"
 	"github.com/getsentry/sentry-go"
+	"github.com/go-pg/pg/v10"
 	"github.com/monetr/rest-api/pkg/models"
 	"github.com/pkg/errors"
 )
@@ -24,4 +25,34 @@ func (r *repositoryBase) UpdatePlaidLink(ctx context.Context, link *models.Plaid
 	span.SetTag("accountId", r.AccountIdStr())
 	_, err := r.txn.ModelContext(span.Context(), link).WherePK().Update(link)
 	return errors.Wrap(err, "failed to update Plaid link")
+}
+
+type PlaidRepository interface {
+	GetLinkByItemId(ctx context.Context, itemId string) (*models.Link, error)
+}
+
+type plaidRepositoryBase struct {
+	txn pg.DBI
+}
+
+func (r *plaidRepositoryBase) GetLinkByItemId(ctx context.Context, itemId string) (*models.Link, error) {
+	span := sentry.StartSpan(ctx, "GetLinkByItemId")
+	defer span.Finish()
+
+	span.Data = map[string]interface{}{
+		"itemId": itemId,
+	}
+
+	var link models.Link
+	err := r.txn.ModelContext(span.Context(), &link).
+		Relation("PlaidLink").
+		Relation("BankAccounts").
+		Where(`"plaid_link"."item_id" = ?`, itemId).
+		Limit(1).
+		Select(&link)
+	if err != nil {
+		return nil, errors.Wrap(err, "failed to retrieve link by item Id")
+	}
+
+	return &link, nil
 }

@@ -3,8 +3,7 @@ package platypus
 import (
 	"context"
 	"github.com/monetr/rest-api/pkg/crumbs"
-	"github.com/pkg/errors"
-	"net/http"
+	"time"
 
 	"github.com/getsentry/sentry-go"
 	"github.com/plaid/plaid-go/plaid"
@@ -14,6 +13,8 @@ import (
 type (
 	Client interface {
 		GetAccounts(ctx context.Context, accountIds ...string) ([]BankAccount, error)
+		GetAllTransactions(ctx context.Context, start, end time.Time, accountIds []string) (interface{}, error)
+		RemoveItem(ctx context.Context) error
 	}
 )
 
@@ -33,34 +34,6 @@ func (p *PlaidClient) getLog(span *sentry.Span) *logrus.Entry {
 	return p.log.WithContext(span.Context()).WithField("plaid", span.Op)
 }
 
-// after is a wrapper around some of the basic operations we would want to perform after each request. Mainly that we
-// want to keep track of things like the request Id and some information about the request itself. It also handles error
-// wrapping.
-func (p *PlaidClient) after(span *sentry.Span, response *http.Response, err error, message, errorMessage string) error {
-	if response != nil {
-		requestId := response.Header.Get("X-Request-Id")
-		span.Data["plaidRequestId"] = requestId
-		span.SetTag("plaidRequestId", requestId)
-		crumbs.HTTP(
-			span.Context(),
-			message,
-			"plaid",
-			response.Request.URL.String(),
-			response.Request.Method,
-			response.StatusCode,
-			map[string]interface{}{
-				"X-RequestId": requestId,
-			},
-		)
-	}
-	if err != nil {
-		span.Status = sentry.SpanStatusInternalError
-	}
-
-	span.Status = sentry.SpanStatusOK
-
-	return errors.Wrap(err, errorMessage)
-}
 
 func (p *PlaidClient) GetAccounts(ctx context.Context, accountIds ...string) ([]BankAccount, error) {
 	span := sentry.StartSpan(ctx, "Plaid - GetAccount")
@@ -95,7 +68,7 @@ func (p *PlaidClient) GetAccounts(ctx context.Context, accountIds ...string) ([]
 	// Send the request.
 	result, response, err := request.Execute()
 	// And handle the response.
-	if err = p.after(
+	if err = after(
 		span,
 		response,
 		err,
@@ -128,3 +101,40 @@ func (p *PlaidClient) GetAccounts(ctx context.Context, accountIds ...string) ([]
 
 	return accounts, nil
 }
+
+func (p *PlaidClient) GetAllTransactions(ctx context.Context, start, end time.Time, accountIds []string) (interface{}, error) {
+	panic("implement me")
+}
+
+func (p *PlaidClient) RemoveItem(ctx context.Context) error {
+	span := sentry.StartSpan(ctx, "Plaid - RemoveItem")
+	defer span.Finish()
+
+	log := p.getLog(span)
+
+	log.Trace("removing item")
+
+	// Build the get accounts request.
+	request := p.client.PlaidApi.
+		ItemRemove(span.Context()).
+		ItemRemoveRequest(plaid.ItemRemoveRequest{
+			AccessToken: p.accessToken,
+		})
+
+	// Send the request.
+	_, response, err := request.Execute()
+	// And handle the response.
+	if err = after(
+		span,
+		response,
+		err,
+		"Removing Plaid item",
+		"failed to remove Plaid item",
+	); err != nil {
+		log.WithError(err).Errorf("failed to remove Plaid item")
+		return err
+	}
+
+	return nil
+}
+

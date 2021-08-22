@@ -3,6 +3,7 @@ package controller
 import (
 	"context"
 	"fmt"
+	"github.com/monetr/rest-api/pkg/internal/platypus"
 	"github.com/monetr/rest-api/pkg/mail"
 	"net/http"
 	"net/smtp"
@@ -38,7 +39,7 @@ type Controller struct {
 	db                       *pg.DB
 	configuration            config.Configuration
 	captcha                  *recaptcha.ReCAPTCHA
-	plaid                    plaid_helper.Client
+	plaid                    platypus.Platypus
 	plaidWebhookVerification plaid_helper.WebhookVerification
 	plaidSecrets             secrets.PlaidSecretsProvider
 	smtp                     *smtp.Client
@@ -61,7 +62,7 @@ func NewController(
 	configuration config.Configuration,
 	db *pg.DB,
 	job jobs.JobManager,
-	plaidClient plaid_helper.Client,
+	plaidClient platypus.Platypus,
 	stats *metrics.Stats,
 	stripe stripe_helper.Stripe,
 	cachePool *redis.Pool,
