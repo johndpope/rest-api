@@ -5,7 +5,9 @@ import (
 	"encoding/json"
 	"github.com/MicahParks/keyfunc"
 	"github.com/getsentry/sentry-go"
+	"github.com/monetr/rest-api/pkg/internal/myownsanity"
 	"github.com/pkg/errors"
+	"github.com/plaid/plaid-go/plaid"
 	"github.com/sirupsen/logrus"
 	"sync"
 	"sync/atomic"
@@ -29,6 +31,20 @@ type WebhookVerificationKey struct {
 	Y         string `json:"y"`
 	CreatedAt int32  `json:"created_at"`
 	ExpiredAt *int32 `json:"expired_at"`
+}
+
+func NewWebhookVerificationKeyFromPlaid(input plaid.JWKPublicKey) (WebhookVerificationKey, error) {
+	return WebhookVerificationKey{
+		Alg:       input.GetAlg(),
+		Crv:       input.GetCrv(),
+		Kid:       input.GetKid(),
+		Kty:       input.GetKty(),
+		Use:       input.GetUse(),
+		X:         input.GetX(),
+		Y:         input.GetY(),
+		CreatedAt: input.GetCreatedAt(),
+		ExpiredAt: myownsanity.Int32P(input.GetExpiredAt()),
+	}, nil
 }
 
 type WebhookVerification interface {

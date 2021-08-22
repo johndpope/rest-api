@@ -2,6 +2,7 @@ package platypus
 
 import (
 	"context"
+	"fmt"
 	"github.com/getsentry/sentry-go"
 	"github.com/monetr/rest-api/pkg/config"
 	"github.com/monetr/rest-api/pkg/crumbs"
@@ -128,6 +129,8 @@ func (p *Plaid) CreateLinkToken(ctx context.Context) (*LinkToken, error) {
 		return nil, err
 	}
 
+	fmt.Sprint(result)
+
 	panic("not implemented")
 	return nil, nil
 }
@@ -187,7 +190,13 @@ func (p *Plaid) GetWebhookVerificationKey(ctx context.Context, keyId string) (*W
 		log.WithError(err).Errorf("failed to exchange public token with Plaid")
 		return nil, err
 	}
-	panic("implement me")
+
+	webhook, err := NewWebhookVerificationKeyFromPlaid(result.Key)
+	if err != nil {
+		return nil, err
+	}
+
+	return &webhook, nil
 }
 
 func (p *Plaid) NewClientFromItemId(ctx context.Context, itemId string) (Client, error) {
